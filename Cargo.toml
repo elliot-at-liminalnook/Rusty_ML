@@ -1,0 +1,7 @@
+[package]
+name = "load_data"
+version = "0.1.0"
+authors = ["Robert Elliot Pahel-Short <pahelshortr6373@connect.durhamtech.edu>"]
+
+[dependencies]
+regex = "0.1"
