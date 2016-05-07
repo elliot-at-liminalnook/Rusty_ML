@@ -4,7 +4,7 @@
 * have fun
  
 ## Completed goals:
-* put non working code on github :+1
+* put non working code on github :+1:
 
 ## Current goals:
 * create data struct so that importing data files (ML training data) is simple
