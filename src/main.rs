@@ -30,7 +30,9 @@ fn word_match(word: &str) -> bool {
         .expect("failed to read your input!");
     let strng = format!("(?i){}", word);
     let meta_match = Regex::new(strng.as_str()).unwrap();
-    meta_match.is_match(&input)
+    let b = meta_match.is_match(&input);
+    //println!("{}",b);
+    b
 }
 
 fn count_files(folder: &str) -> Option<u16> {
@@ -54,9 +56,9 @@ fn make_choice(vs: Vec<(u16, String)>) -> String {
     io::stdin()
         .read_line(&mut input)
         .expect("failed to read line");
-    let input = input.parse::<usize>().expect("wanted a number");
+    let index = input.parse::<u8>().expect("wanted a number");
 
-    vs[input - 1].1.to_owned()
+    vs[(index as usize) - 1].1.to_owned()
 }
 //
 
@@ -156,7 +158,7 @@ impl Data {
             let mut wait_for_data = true; //if there are no files in the data folder this should be true
 
             while wait_for_data == true {
-                if !word_match("data added") {
+                if word_match("data added") {
                     match count_files("./data") {
                         Some(a) => {
                             if a == 0 {
