@@ -138,7 +138,7 @@ struct Data {
 }
 
 impl Data {
-    fn initialize() -> Data{
+    fn initialize(&self) {
 
         let has_data: bool;
         let has_meta_data: bool;
@@ -201,30 +201,21 @@ impl Data {
 
         }
 
-        let mut d : Data;
-        let mut choice : String ;
-        let mut data;
+
 
         if !has_meta_data && has_data {
             // need to choose a data file to load ... have them pick from the data directory
             let v: Vec<(u16, String)> = show_files("./data");
-            choice = make_choice(v);
+            self.data_file = make_choice(v);
+            
             print_first_line_of_file(choice.as_str());
-            data = Data::load(&choice);
+            self.data = Data::load(&choice);
             // println!("{:?}", v[0]);
 
 
         }
 
-        Data {
-            field_names: vec!["test".to_string()],
-            data_file: choice,
-            data: data,
-            has_meta_data: has_meta_data,
-            has_data: has_data,
-            delimiter: ",".to_string(),
-            project_name: "test name".to_string(),
-        }
+ 
 
     }
 
