@@ -1,5 +1,5 @@
-//use std::error::Error;
-//use std::fs::File;
+use std::error::Error;
+use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::io;
@@ -11,16 +11,7 @@ use regex::Regex;
 
 
 
-#[derive(Debug)]
-struct Data {
-    field_names: Vec<String>,
-    data_file: String,
-    data: Vec<Vec<String>>,
-    has_meta_data: bool,
-    has_data: bool,
-    delimiter: String,
-    project_name: String,
-}
+
 
 fn word_match(word: &str) -> bool {
     println!("Type \"{}\" to continue...", word);
@@ -82,6 +73,30 @@ fn make_folder(name: &str, optional_folder_location: Option<&str>) -> Result<Str
 
 }
 
+fn print_first_line_of_file(file: &str) {
+    let path = Path::new(file);
+    let display = path.display();
+
+    // Open the path in read-only mode, returns `io::Result<File>`
+    let mut file = match File::open(&path) {
+        // The `description` method of `io::Error` returns a string that describes the error
+        Err(why) => panic!("couldn't open {}: {}", display, Error::description(&why)),
+        Ok(file) => file,
+    };
+
+    // Read the file contents into a string, returns `io::Result<usize>`
+    let mut s = String::new();
+    match file.read_to_string(&mut s) {
+        Err(why) => panic!("couldn't read {}: {}", display, Error::description(&why)),
+        Ok(_) => {
+
+            println!("{}",s.lines().nth(0).unwrap());
+
+
+        }
+    }
+
+}
 
 
 // prints the files in a directory/ letting the user know if it is not a directory
@@ -111,21 +126,30 @@ fn show_files(folder: &str) -> Vec<(u16, String)> {
     v //return the vector of tuples of the choices we can make!
 }
 
+#[derive(Debug)]
+struct Data {
+    field_names: Vec<String>,
+    data_file: String,
+    data: Vec<Vec<String>>,
+    has_meta_data: bool,
+    has_data: bool,
+    delimiter: String,
+    project_name: String,
+}
+
 impl Data {
-    fn initialize() {
+    fn initialize() -> Data{
 
         let has_data: bool;
         let has_meta_data: bool;
+        let mut wait_for_data = false;
 
         // check for existance of ./data and ./meta folder
         match count_files("./meta") {
-            Some(a) => {
-                if a == 0 {
-                    has_meta_data = false;
-                } else {
+            Some(_) => {
                     has_meta_data = true
-                }
-            }
+                },
+
             None => has_meta_data = false,
         }
 
@@ -133,7 +157,8 @@ impl Data {
         match count_files("./data") {
             Some(a) => {
                 if a == 0 {
-                    has_data = false
+                    has_data = true;
+                    wait_for_data = true
                 } else {
                     has_data = true
                 }
@@ -155,7 +180,7 @@ impl Data {
                              s)
                 }
             }
-            let mut wait_for_data = true; //if there are no files in the data folder this should be true
+             //if there are no files in the data folder this should be true
 
             while wait_for_data == true {
                 if word_match("data added") {
@@ -176,33 +201,43 @@ impl Data {
 
         }
 
-
+        let mut d : Data;
+        let mut choice : String ;
+        let mut data;
 
         if !has_meta_data && has_data {
             // need to choose a data file to load ... have them pick from the data directory
             let v: Vec<(u16, String)> = show_files("./data");
-            let choice: String = make_choice(v);
-            println!("{}",choice);
-            //let data = Data::load(choice);
+            choice = make_choice(v);
+            print_first_line_of_file(choice.as_str());
+            data = Data::load(&choice);
             // println!("{:?}", v[0]);
+
+
         }
-        // let mut d =  Data { field_names : Vec<String>,
-        // data_file_name : String,
-        // data : Vec<Vec<String>>,
-        // has_meta_data :   has_meta_data,
-        // has_data : has_data };
-        //
+
+        Data {
+            field_names: vec!["test".to_string()],
+            data_file: choice,
+            data: data,
+            has_meta_data: has_meta_data,
+            has_data: has_data,
+            delimiter: ",".to_string(),
+            project_name: "test name".to_string(),
+        }
+
     }
 
-/*
-    fn load(data_file: String) -> Vec<Vec<String>> {
+
+
+    fn load(data_file: &String) -> Vec<Vec<String>> {
         // we will collect field_names, delimiter
         let mut c: Vec<Vec<String>> = Vec::new();
 
 
 
         // Create a path to the desired file
-        let path = Path::new(data_file);
+        let path = Path::new(data_file.as_str());
         let display = path.display();
 
         // Open the path in read-only mode, returns `io::Result<File>`
@@ -221,7 +256,7 @@ impl Data {
                 println!("{} data loaded!", display);
 
                 for l in s.lines() {
-                    let x = l.split(",").into_iter().map(|c| c.to_owned()).collect::<Vec<String>>();
+                    let x = l.split(",").into_iter().map(|z| z.to_owned()).collect::<Vec<String>>();
                     c.push(x);
 
                 }
@@ -229,7 +264,7 @@ impl Data {
         }
         c //this is the data that we want to return
     }
-*/
+
 }
 
 
