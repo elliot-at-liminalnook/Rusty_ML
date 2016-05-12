@@ -5,3 +5,4 @@ authors = ["Robert Elliot Pahel-Short <pahelshortr6373@connect.durhamtech.edu>"]
 
 [dependencies]
 regex = "0.1"
+ansi_term = "0.7"

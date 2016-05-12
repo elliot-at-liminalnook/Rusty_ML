@@ -6,24 +6,40 @@ use std::io;
 use std::fs;
 extern crate regex;
 use regex::Regex;
+extern crate ansi_term;
+use ansi_term::Colour::{Green};
+use ansi_term::Style;
+use std::process::Command;
+use std::cmp;
 
 
 
 
+fn clear() {
+                    //clear command line (for all platforms... hopefully)
+                let output = Command::new("cls").output().unwrap_or_else(
+                |_| 
+                Command::new("clear").output().unwrap_or_else(
+                |e| {
+                panic!("failed to execute process: {}\n Need to implement terminal clearing command for your operating system", e)
+                }
+                ));
+
+                println!("{}", String::from_utf8_lossy(&output.stdout));
+}
 
 
 
-fn word_match(word: &str) -> bool {
-    println!("Type \"{}\" to continue...", word);
+fn word_match(word: &str, to_do: &str) -> bool {
+    println!("Type \"{}\" {}", Green.underline().paint(word), to_do);
     let mut input = String::new();
     io::stdin()
         .read_line(&mut input)
         .expect("failed to read your input!");
     let strng = format!("(?i){}", word);
     let meta_match = Regex::new(strng.as_str()).expect("words to match or not match");
-    let b = meta_match.is_match(&input);
-    //println!("{}",b);
-    b
+    meta_match.is_match(&input)
+
 }
 
 fn count_files(folder: &str) -> Option<u16> {
@@ -48,7 +64,14 @@ fn count_files(folder: &str) -> Option<u16> {
 }
 
 macro_rules! parse_input {
-    ($t:ty) => {{
+    ($t:ty,$min:expr,$max:expr) => {{
+    if $min != $max {
+    println!("Please enter a value greater or equal to: {} and less than or equal to: {}", $min, $max);
+    }
+    else {
+        println!("(Until you add more data you only have one choice.)")
+    }
+    
     let mut input_text = String::new();
     io::stdin()
         .read_line(&mut input_text)
@@ -56,7 +79,11 @@ macro_rules! parse_input {
 
     let trimmed = input_text.trim();
     match trimmed.parse::<$t>() {
-        Ok(i) => Some(i),
+        Ok(i) => {
+        if (i > $max) | (i < $min) {None}
+        else {Some(i)}
+        
+        }
         Err(..) => None,
     }
     }};
@@ -65,24 +92,26 @@ macro_rules! parse_input {
 
 
 
-fn make_choice(vs: Vec<(u16, String)>) -> String {
+fn make_choice(vs: &Vec<String>) -> String {
     
-    println!("\n-----------\nchoices\n-----------");
-    for v in &vs {
-        println!("{} ->  {}", v.0, v.1);
+    let max = vs.iter().count() as u16;
+    
+    println!("\n-----------\n{}\n-----------",Green.paint("choices"));
+    for (i,st) in vs.iter().enumerate() {
+        println!("{} ->  {}", i+1, st);
     }
         println!("-----------\n");    
         println!("Pick the number of the file that you would like to work on: ");
 
-    let mut index = parse_input!(u16);
+    let mut index = parse_input!(u16,1,cmp::min(std::u16::MAX, max));
     
     while index.is_none() {
-        index = parse_input!(u16);
+        index = parse_input!(u16,1,cmp::min(std::u16::MAX, max));
+        
     }
-    let num_index = index.expect("the index to be a number");
-    //println!("{:?}", index);
+
     
-    vs[(num_index  - 1) as usize].1.to_string()
+    vs[(index.unwrap()  - 1) as usize].to_string()
 }
 //
 
@@ -132,7 +161,8 @@ fn make_folder(name: &str, optional_folder_location: Option<&str>) -> Result<Str
 
 }
 
-fn print_first_line_of_file(file: &str) {
+fn print_first_line_of_file(file: &str) -> String {
+    let mut line = String::new();
     let path = Path::new(file);
     let display = path.display();
 
@@ -153,27 +183,25 @@ fn print_first_line_of_file(file: &str) {
                 println!("This file doesn't even have one line!")
             }
             else{
-            
-            println!("{}",s.lines().nth(0).expect("print_first_line_of_file to work"));
+            line = s.lines().nth(0).expect("print_first_line_of_file to work").to_string();
+            println!("{}:\n{}\n",Green.paint("First line: "),line);
             }
 
         }
     }
-
+    line
 }
 
 
 // prints the files in a directory/ letting the user know if it is not a directory
-fn collect_files(folder: &str) -> Vec<(u16, String)> {
-    let mut v: Vec<(u16, String)> = Vec::new();
+fn collect_files(folder: &str) -> Vec<String> {
+    let mut v: Vec<( String)> = Vec::new();
 
     let p = Path::new(folder);
 
     if p.is_dir() {
         let paths = fs::read_dir(&folder).expect("collect_files to work");
-        //println!("Which data file would you like to work on?:\n-------------------------");
 
-        let mut choice = 1u16;
 
         for path in paths {
             // put choice in a vector of tuples (choice number, filename)
@@ -182,9 +210,7 @@ fn collect_files(folder: &str) -> Vec<(u16, String)> {
                 continue
             }
             else{
-            //println!("{} :: {}", choice, disp);
-            v.push((choice, disp.to_owned()));
-            choice += 1;
+            v.push(disp.to_string());
             }
         }
         //println!("-------------------------")
@@ -193,6 +219,11 @@ fn collect_files(folder: &str) -> Vec<(u16, String)> {
         println!("{} is not a directory", folder);
     }
     v //return the vector of tuples of the choices we can make!
+}
+
+
+fn split_over<'a,'b>(line : &'a str, delimiter : &'b str) -> Vec<&'a str> {
+    line.split(delimiter).collect::<Vec<&str>>()
 }
 
 #[derive(Debug)]
@@ -208,7 +239,10 @@ struct Data {
 
 impl Data {
     fn initialize() {
-
+        
+        //clear terminal
+        clear();
+        
         let has_data: bool;
         let has_meta_data: bool;
         let mut wait_for_data = false;
@@ -225,7 +259,7 @@ impl Data {
 
         match count_files("./data") {
             Some(a) => {
-                println!("Inside the ./data folder there are {} non-empty file(s)", a);
+                println!("Inside the {} folder there are {} non-empty file(s)\n", Green.paint("./data"), Green.paint(a.to_string()));
                 if a == 0 {
                     has_data = true;
                     wait_for_data = true
@@ -243,6 +277,7 @@ impl Data {
                     println!("Error trying to make the data folder: {}", e);
                 }
                 Ok(s) => {
+                    wait_for_data = true;
                     println!("{} folder successfully created! Go ahead and add a data file.",
                              s)
                 }
@@ -255,12 +290,12 @@ impl Data {
         }
         
             while wait_for_data == true {
-                println!("All data that you want to import should be placed in the data folder that exists **in the location the place where this program was called from**");
-                if word_match("data added") {
+                println!("All data that you want to import should be placed in the data folder that exists in the location the place where this program was called from.");
+                if word_match("data added","to continue...") {
                     match count_files("./data") {
                         Some(a) => {
                             if a == 0 {
-                                println!("Make sure you put the data in the correct folder");
+                                println!("\nMake sure you put the data in the correct folder, also, this program checks to see that the file is not empty.");
                                 wait_for_data = true
                             } else {
                                 wait_for_data = false
@@ -271,14 +306,55 @@ impl Data {
                 }
             }
 
-        let choice : String;
+        let mut choice : String;
         //let mut data : vec<vec<String>>;
 
         if !has_meta_data && has_data {
             // need to choose a data file to load ... have them pick from the data directory
-            let v: Vec<(u16, String)> = collect_files("./data");
-            choice = make_choice(v);
-            print_first_line_of_file(&choice);
+            
+            clear();
+            let v: Vec<String> = collect_files("./data");
+            choice = make_choice(&v);
+            
+            clear();
+            
+            println!("\n{}: {}.",Green.paint("You chose"), choice );
+
+            while !word_match("continue","if this is the file you want to work with. Enter anything else if you want to pick another file.") {
+                clear();
+                choice = make_choice(&v);
+                println!("\n{}: {}.",Green.paint("You chose"), choice );
+
+            }
+            
+
+            clear();
+            
+            println!("\nOkay, great! Now let's collect some information about this file. I'll provide a line from the data file and I want you to tell me some things about it.\n");
+            
+            let flor =  print_first_line_of_file(&choice);
+            
+            println!("What is the {} for the data (i.e. {}).", Green.paint("delimiter"), Style::new().bold().paint("the thing that separates the pieces of data -- usually a colon or a comma"));
+            
+            let mut delimiter =  String::new();
+            
+            io::stdin().read_line(&mut delimiter).ok().expect("should read line...");
+             
+            delimiter = delimiter.to_string().trim().to_string();
+            
+            let my_split = split_over(&flor,&delimiter);
+            
+            clear();
+            println!("Supposing that the {} is `{}` the first row will be parsed to look like:\n",Green.paint("delimiter"), delimiter);
+            
+            for (c, st) in my_split.iter().enumerate() {
+            println!("column {}: {}", c+1, &st);
+            }
+            
+            println!("\nMake sure this is {} because all subsequent rows will be parsed in a similar manner!\n", Green.bold().paint("correct"));
+            
+            
+            
             
             //right here we want to ask the user to specify the data headers and delimiter based on the printed first line
             
