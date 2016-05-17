@@ -11,7 +11,32 @@ use ansi_term::Colour::{Green};
 use ansi_term::Style;
 use std::process::Command;
 use std::cmp;
+extern crate bincode;
+extern crate rustc_serialize;
+use bincode::SizeLimit;
+use bincode::rustc_serialize::{encode, decode};
 
+
+fn string_please() -> String {
+    let mut temp_st = String::new();
+    let mut good_result = false;
+    
+    while !good_result {
+    let temp = io::stdin().read_line(&mut temp_st);
+    if temp.is_ok(){
+        good_result = true;
+    }
+    else {
+        println!("please enter a series of letters and/or numbers:"); 
+        temp_st = "".to_string();
+    }
+
+    }
+    
+    temp_st.trim().to_string()
+
+    
+}
 
 
 
@@ -89,6 +114,18 @@ macro_rules! parse_input {
     }};
 }
 
+macro_rules! parse_as {
+    ($e:expr,$t:ty) => {{
+
+    let trimmed = $e.trim();
+    match trimmed.parse::<$t>() {
+        Some(i)
+        
+        
+        Err(..) => None,
+    }
+    }};
+}
 
 
 
@@ -218,7 +255,7 @@ fn collect_files(folder: &str) -> Vec<String> {
     } else {
         println!("{} is not a directory", folder);
     }
-    v //return the vector of tuples of the choices we can make!
+    v 
 }
 
 
@@ -226,15 +263,51 @@ fn split_over<'a,'b>(line : &'a str, delimiter : &'b str) -> Vec<&'a str> {
     line.split(delimiter).collect::<Vec<&str>>()
 }
 
-#[derive(Debug)]
+#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+struct Column {
+    name: String,
+    values: Vec<String>,
+    is_numeric : bool,
+    //max: Option<f64>,
+    //min: Option<f64>,
+}
+
+impl  Column {
+    fn new(data : Vec<String>, name : &str) -> Column {
+        let name = name.to_string();
+        let values = data;
+        let mut is_numeric = false; //if the 
+        if data.len() > 0 {
+            if let Some(_) parse_as!(data[0]) {
+                
+                is_numeric = true;
+                
+            }
+        
+            if is_numeric {
+            
+                //add min/max here
+                
+            }
+            
+        }
+        else {
+            println!("For some reason this column has no data.")
+        }
+        
+        
+    }
+    
+    
+}
+
+#[derive(RustcEncodable, RustcDecodable, PartialEq)]
 struct Data {
     field_names: Vec<String>,
     data_file: String,
-    data: Vec<Vec<String>>,
-    has_meta_data: bool,
-    has_data: bool,
+    data: Vec<Column>,
     delimiter: String,
-    project_name: String,
+    project_name: String, //will be the file name of the meta-file that saves the data state
 }
 
 impl Data {
@@ -243,7 +316,7 @@ impl Data {
         //clear terminal
         clear();
         
-        let has_data: bool;
+        let mut has_data: bool;
         let has_meta_data: bool;
         let mut wait_for_data = false;
 
@@ -278,7 +351,7 @@ impl Data {
                 }
                 Ok(s) => {
                     wait_for_data = true;
-                    println!("{} folder successfully created! Go ahead and add a data file.",
+                    println!("\n{} folder successfully created! Go ahead and add a data file.\n",
                              s)
                 }
             }
@@ -298,7 +371,8 @@ impl Data {
                                 println!("\nMake sure you put the data in the correct folder, also, this program checks to see that the file is not empty.");
                                 wait_for_data = true
                             } else {
-                                wait_for_data = false
+                                wait_for_data = false;
+                                has_data = true
                             }
                         }
                         None => wait_for_data = false,
@@ -332,19 +406,26 @@ impl Data {
             
             println!("\nOkay, great! Now let's collect some information about this file. I'll provide a line from the data file and I want you to tell me some things about it.\n");
             
-            let flor =  print_first_line_of_file(&choice);
+            let first_line =  print_first_line_of_file(&choice);
             
             println!("What is the {} for the data (i.e. {}).", Green.paint("delimiter"), Style::new().bold().paint("the thing that separates the pieces of data -- usually a colon or a comma"));
             
+           let mut need_delimiter = true;
+           
+           let mut my_split : Vec<&str>;
             let mut delimiter =  String::new();
+
+        while need_delimiter {
+            
             
             io::stdin().read_line(&mut delimiter).ok().expect("should read line...");
              
             delimiter = delimiter.to_string().trim().to_string();
             
-            let my_split = split_over(&flor,&delimiter);
+            my_split = split_over(&first_line,&delimiter);
             
             clear();
+            
             println!("Supposing that the {} is `{}` the first row will be parsed to look like:\n",Green.paint("delimiter"), delimiter);
             
             for (c, st) in my_split.iter().enumerate() {
@@ -354,6 +435,38 @@ impl Data {
             println!("\nMake sure this is {} because all subsequent rows will be parsed in a similar manner!\n", Green.bold().paint("correct"));
             
             
+            need_delimiter = !word_match("correct","to indicate that you've entered the right delimiter. Type anything else to pick a different delimiter.");
+            
+            if need_delimiter {
+                clear();
+                println!("Alright, please enter a new delimiter:")
+            }
+                
+                
+            clear();
+            println!("Okay, now for each of the columns, tell me the {} (i.e. {})\n", Green.paint("label"), Style::new().bold().paint("the name of what the data in the column actually represents."));
+            
+            let mut column_names : Vec<String> = Vec::new();
+            
+            for (c, st) in my_split.iter().enumerate() {
+
+            println!("What is the name of column {} (with a value of {})? You might have to check to see where you got this data from in order to get the header labels.", c+1, &st);
+            
+            column_names.push(string_please());
+
+                
+            }
+            
+            
+            
+            
+        }
+            
+            
+            
+            
+            
+
             
             
             //right here we want to ask the user to specify the data headers and delimiter based on the printed first line
