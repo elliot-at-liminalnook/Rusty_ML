@@ -245,6 +245,71 @@ fn collect_files(folder: &str) -> Vec<String> {
     v
 }
 
+fn file_exists(file_name: &str) -> bool {
+    Path::new(file_name).exists() && Path::new(file_name).is_file()
+}
+
+fn choose_another_file() -> String {
+    println!("Please choose another file: ");
+    let mut file_name = string_please();
+    let mut exists = file_exists(&file_name);
+    while !exists {
+        println!("Please choose another file, {} does not exist: ", file_name);
+        file_name = string_please();
+        exists = file_exists(&file_name);
+    }
+    file_name
+}
+
+fn file_to_string(file: &str) -> String {
+    let mut my_file = file.to_string();
+    if file_exists(file) {} else {
+        my_file = choose_another_file()
+    }
+
+    let mut path = Path::new(&my_file);
+    let display = path.display();
+
+    // Open the path in read-only mode, returns `io::Result<File>`
+    let mut file = match File::open(&path) {
+        // The `description` method of `io::Error` returns a string that describes the error
+        Err(why) => panic!("couldn't open {}: {}", display, Error::description(&why)),
+        Ok(file) => file,
+    };
+
+    let mut s = String::new();
+    match file.read_to_string(&mut s) {
+        Err(why) => panic!("couldn't read {}: {}", display, Error::description(&why)),
+        Ok(_) => s,
+    }
+}
+
+fn split_file(file: &str, delimiter: &str) -> Vec<Vec<String>> {
+    let temp = print_first_line_of_file(file);
+    let count = split_over(&temp, delimiter).len();
+
+    // split lines that don't have exactly "count" number of fields will be thrown away
+    let s = file_to_string(file);
+
+    let mut inner_vec: Vec<String> = Vec::with_capacity(count as usize);
+    let mut outter_vec: Vec<Vec<String>> = Vec::new();
+    for _ in 0..count {
+        outter_vec.push(Vec::new());
+    }
+
+    for line in s.lines() {
+        let split = split_over(line, delimiter);
+        if split.len() != count {
+            continue;
+        } else {
+            for (inner_index, val) in split.iter().enumerate() {
+                outter_vec[inner_index].push(val.to_string());
+            }
+        }
+    }
+    outter_vec
+
+}
 
 fn split_over<'a, 'b>(line: &'a str, delimiter: &'b str) -> Vec<&'a str> {
     line.split(delimiter).collect::<Vec<&str>>()
