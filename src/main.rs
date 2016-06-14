@@ -13,8 +13,11 @@ use std::process::Command;
 use std::cmp;
 extern crate bincode;
 extern crate rustc_serialize;
+use std::fmt;
+
 use bincode::SizeLimit;
 use bincode::rustc_serialize::{encode, decode};
+//
 
 
 fn string_please() -> String {
@@ -90,8 +93,11 @@ macro_rules! parse_input {
     println!("Please enter a value greater or equal to: {} and less than or equal to: {}", $min, $max);
     }
     else {
-        println!("(Until you add more data you only have one choice.)")
+        println!("Well, the only choice is {}", $min);
+
     }
+
+
 
     let mut input_text = String::new();
     io::stdin()
@@ -123,7 +129,7 @@ macro_rules! parse_as {
     }};
 }
 
-fn make_choice(vs: &Vec<String>) -> String {
+fn make_choice(vs: &Vec<String>, explanation: &str) -> String {
 
     let max = vs.iter().count() as u16;
 
@@ -132,7 +138,7 @@ fn make_choice(vs: &Vec<String>) -> String {
         println!("{} ->  {}", i + 1, st);
     }
     println!("-----------\n");
-    println!("Pick the number of the file that you would like to work on: ");
+    println!("{}", explanation);
 
     let mut index = parse_input!(u16, 1, cmp::min(std::u16::MAX, max));
 
@@ -144,6 +150,7 @@ fn make_choice(vs: &Vec<String>) -> String {
 
     vs[(index.unwrap() - 1) as usize].to_string()
 }
+
 
 fn is_empty_file(file: &str) -> bool {
     let path = Path::new(file);
@@ -267,7 +274,7 @@ fn file_to_string(file: &str) -> String {
         my_file = choose_another_file()
     }
 
-    let mut path = Path::new(&my_file);
+    let path = Path::new(&my_file);
     let display = path.display();
 
     // Open the path in read-only mode, returns `io::Result<File>`
@@ -284,14 +291,13 @@ fn file_to_string(file: &str) -> String {
     }
 }
 
-fn split_file(file: &str, delimiter: &str) -> Vec<Vec<String>> {
+fn split_file_to_columns(file: &str, delimiter: &str) -> Vec<Vec<String>> {
     let temp = print_first_line_of_file(file);
     let count = split_over(&temp, delimiter).len();
 
     // split lines that don't have exactly "count" number of fields will be thrown away
     let s = file_to_string(file);
 
-    let mut inner_vec: Vec<String> = Vec::with_capacity(count as usize);
     let mut outter_vec: Vec<Vec<String>> = Vec::new();
     for _ in 0..count {
         outter_vec.push(Vec::new());
@@ -300,6 +306,9 @@ fn split_file(file: &str, delimiter: &str) -> Vec<Vec<String>> {
     for line in s.lines() {
         let split = split_over(line, delimiter);
         if split.len() != count {
+            println!("\"{}\" cannot be split correctly... Check the file ({}) for this line",
+                     line.trim(),
+                     file);
             continue;
         } else {
             for (inner_index, val) in split.iter().enumerate() {
@@ -311,16 +320,22 @@ fn split_file(file: &str, delimiter: &str) -> Vec<Vec<String>> {
 
 }
 
+
+
+
 fn split_over<'a, 'b>(line: &'a str, delimiter: &'b str) -> Vec<&'a str> {
     line.split(delimiter).collect::<Vec<&str>>()
 }
 
-#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+#[derive(RustcEncodable, RustcDecodable, PartialEq, Debug)]
 struct Column {
+    total_row_number: u64,
     name: String,
     values: Vec<String>,
-    is_numeric: bool, /* max: Option<f64>,
-                       * min: Option<f64>, */
+    is_numeric: bool,
+    bad_rows: Option<Vec<usize>>, /* bad_rows starts at 0
+                                   * max: Option<f64>,
+                                   * min: Option<f64>, */
 }
 
 impl Column {
@@ -335,41 +350,122 @@ impl Column {
                                        },
                                        f64) {
 
-                is_numeric = true;
 
+
+                println!("I've determined that the \"{}\" column is numeric. Is this correct?",
+                         name);
+                if !word_match("yes", "to confirm that the column is numeric.") {
+                    is_numeric = false;
+                } else {
+                    is_numeric = true;
+                }
+
+
+
+            } else {
+                println!("I've determined that the \"{}\" column contains text values as opposed \
+                          to numeric values. Is this correct?",
+                         name);
+                if word_match("yes", "to confirm that the column is textual.") {
+                    is_numeric = false;
+                } else {
+                    is_numeric = true;
+                }
             }
 
-            if is_numeric {
 
-                // add min/max here
 
-            }
+
 
         } else {
             println!("For some reason this column has no data.");
         }
 
+
+
+
+        let mut bad_rows: Vec<usize> = Vec::new();
+
+
+        for (ind, val) in values.iter().enumerate() {
+
+
+
+            if is_numeric &
+               parse_as!({
+                             &val
+                         },
+                         f64)
+                .is_none() {
+                println!("\nFor column: {} Row number {} is not numeric. It has a value of: {}. \
+                          For your convenience I'll mark this row and move on",
+                         name,
+                         ind,
+                         val);
+                bad_rows.push(ind);
+            }
+        }
+        let r: Option<Vec<usize>>;
+        if bad_rows.is_empty() {
+            r = None;
+        } else {
+            r = Some(bad_rows);
+        }
+        let total_row_number = values.iter().len() as u64;
+
         Column {
             name: name,
+            total_row_number: total_row_number,
             values: values,
             is_numeric: is_numeric,
+            bad_rows: r,
         }
 
 
     }
 }
 
-#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+impl fmt::Display for Data {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let Data { ref field_names, ref project_name, ref data_file, .. } = *self;
+
+        let width = field_names.iter().fold(0, |big, current| {
+            if big >= current.len() {
+                big
+            } else {
+                current.len()
+            }
+        }) + 3;
+
+        let mut header = String::new();
+        for name in field_names {
+            let temp = format!("{n:<width$}| ", n = name, width = width);
+            header = header + &temp;
+        }
+
+        try!(write!(f,
+                    "Your project \"{}\" is based on data from the file \"{}\"..\nThe column \
+                     names should look like: \n",
+                    project_name,
+                    data_file));
+
+        write!(f, "{}", header)
+
+    }
+}
+
+#[derive(RustcEncodable, RustcDecodable, PartialEq, Debug)]
 struct Data {
     field_names: Vec<String>,
     data_file: String,
     data: Vec<Column>,
     delimiter: String,
     project_name: String, // will be the file name of the meta-file that saves the data state
+    bad_rows: Vec<usize>, // bad lines of the file
 }
 
 impl Data {
-    fn initialize() {
+    fn initialize() -> Data {
 
         // clear terminal
         clear();
@@ -377,6 +473,12 @@ impl Data {
         let mut has_data: bool;
         let has_meta_data: bool;
         let mut wait_for_data = false;
+        let mut data_file: String = "temp".to_string();
+        let mut delimiter = String::new();
+        let mut field_names: Vec<String> = Vec::new();
+        let mut bad_rows: Vec<usize> = Vec::new();
+        let mut data: Vec<Column> = Vec::new();
+        let mut project_name = String::new();
 
         // check for existance of ./data and ./meta folder
         match count_files("./meta") {
@@ -450,7 +552,8 @@ impl Data {
 
             clear();
             let v: Vec<String> = collect_files("./data");
-            choice = make_choice(&v);
+            choice = make_choice(&v,
+                                 "Pick the number of the file that you would like to work on: ");
 
             clear();
 
@@ -460,10 +563,14 @@ impl Data {
                               "if this is the file you want to work with. Enter anything else \
                                if you want to pick another file.") {
                 clear();
-                choice = make_choice(&v);
+                choice = make_choice(&v,
+                                     "Pick the number of the file that you would like to work \
+                                      on: ");
                 println!("\n{}: {}.", Green.paint("You chose"), choice);
 
             }
+
+            data_file = choice.to_string();
 
 
             clear();
@@ -484,7 +591,7 @@ impl Data {
             let mut need_delimiter = true;
 
             let mut my_split: Vec<&str>;
-            let mut delimiter = String::new();
+
 
             while need_delimiter {
 
@@ -518,7 +625,9 @@ impl Data {
 
                 if need_delimiter {
                     clear();
-                    println!("Alright, please enter a new delimiter:")
+                    println!("Alright, please enter a new delimiter:");
+                    continue;
+
                 }
 
 
@@ -530,17 +639,17 @@ impl Data {
                              .paint("the name of what the data in the column actually \
                                      represents."));
 
-                let mut column_names: Vec<String> = Vec::new();
+
 
                 for (c, st) in my_split.iter().enumerate() {
 
                     println!("What is the name of column {} (with a value of {})? You might have \
-                              to check to see where you got this data from in order to get the \
-                              header labels.",
+                              to check to see where you got this data from in order to correctly \
+                              name the columns.",
                              c + 1,
                              &st);
 
-                    column_names.push(string_please());
+                    field_names.push(string_please());
 
 
                 }
@@ -551,62 +660,64 @@ impl Data {
             }
 
 
+            let v: Vec<Vec<String>> = split_file_to_columns(&data_file, &delimiter);
+
+
+            for (i, col) in v.into_iter().enumerate() {
+                let temp = Column::new(col, &field_names[i]);
+
+                if temp.bad_rows.is_some() {
+                    let mut temp_bad: Vec<usize> = temp.bad_rows.to_owned().unwrap();
+
+                    bad_rows.append(&mut temp_bad);
+                    bad_rows.sort();
+                    bad_rows.dedup();
+                    println!("{:?}", bad_rows);
+
+
+                }
+
+                data.push(temp);
+
+
+            }
 
 
 
-
-
-
-            // right here we want to ask the user to specify the data headers and delimiter based on the printed first line
-
-
-            // data = Data::load(&self.data_file);
-            // println!("{:?}", v[0]);
 
 
         }
 
-
+        Data {
+            field_names: field_names,
+            data_file: data_file,
+            data: data,
+            delimiter: delimiter,
+            project_name: "1".to_string(), /* will be the file name of the meta-file that saves the data state */
+            bad_rows: bad_rows, // bad lines of the file
+        }
 
     }
 
+    fn save(&self, path: &str) -> Result<(), std::io::Error> {
+        let data: Vec<u8> = encode(self, SizeLimit::Infinite).expect("Should encode self...");
+        let mut file = try!(File::create(path));
+        file.write_all(&data).map_err(|e| e.into())
 
-    // fn load(data_file: &String) -> Vec<Vec<String>> {
-    // we will collect field_names, delimiter
-    // let mut c: Vec<Vec<String>> = Vec::new();
-    //
-    //
-    //
-    // Create a path to the desired file
-    // let path = Path::new(data_file.as_str());
-    // let display = path.display();
-    //
-    // Open the path in read-only mode, returns `io::Result<File>`
-    // let mut file = match File::open(&path) {
-    // The `description` method of `io::Error` returns a string that describes the error
-    // Err(why) => panic!("couldn't open {}: {}", display, Error::description(&why)),
-    // Ok(file) => file,
-    // };
-    //
-    // Read the file contents into a string, returns `io::Result<usize>`
-    // let mut s = String::new();
-    // match file.read_to_string(&mut s) {
-    // Err(why) => panic!("couldn't read {}: {}", display, Error::description(&why)),
-    // Ok(_) => {
-    //
-    // println!("{} data loaded!", display);
-    //
-    // for l in s.lines() {
-    // let x = l.split(",").into_iter().map(|z| z.to_owned()).collect::<Vec<String>>();
-    // c.push(x);
-    //
-    // }
-    // }
-    // }
-    // c //this is the data that we want to return
-    // }
-    //
-    //
+    }
+
+    fn load(path: &str) -> Result<Data, std::io::Error> {
+        let mut data: Vec<u8> = Vec::new();
+        let mut file = try!(File::open(path));
+
+        file.read_to_end(&mut data);
+        let d: Data = decode(&data).expect("Should encode self...");
+        Ok(d)
+    }
+
+    fn show(&self) {
+        println!("{:?}", self);
+    }
 }
 
 
@@ -618,7 +729,12 @@ fn main() {
 
     // show_files("../blah");
 
-    Data::initialize();
+    // let d = Data::initialize();
+    let f: Data = Data::load("./project1").expect("please work");
+
+    println!("{}", f);
+    // d.save("./project1").expect("please work");
+    // f.show();
 
 
 
